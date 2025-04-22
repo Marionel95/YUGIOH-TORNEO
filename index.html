@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>TORNEO YUGIOH</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      padding: 30px;
+      background: #f9f9f9;
+      color: #333;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    input, button, select {
+      padding: 8px;
+      margin: 5px;
+      font-size: 14px;
+    }
+
+    button {
+      cursor: pointer;
+      border: none;
+      background-color: #3498db;
+      color: white;
+      border-radius: 4px;
+      transition: 0.3s;
+    }
+
+    button:hover {
+      background-color: #2980b9;
+    }
+
+    ul {
+      list-style: none;
+      padding-left: 0;
+    }
+
+    ul li {
+      margin: 4px 0;
+    }
+
+    ul button {
+      background-color: #e74c3c;
+      margin-left: 10px;
+    }
+
+    .section {
+      margin-bottom: 20px;
+      background: #fff;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.1);
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    th, td {
+      border: 1px solid #ccc;
+      padding: 10px;
+      text-align: center;
+    }
+
+    th {
+      background-color: #f1f1f1;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Torneo YUGIOH</h1>
+
+  <div class="section">
+    <h3>Giocatori</h3>
+    <input id="playerName" placeholder="Nome giocatore">
+    <button onclick="addPlayer()">Aggiungi</button>
+    <button onclick="clearAllPlayers()">🧹 Svuota lista</button>
+    <ul id="playerList"></ul>
+  </div>
+
+  <div class="section">
+    <button onclick="startTournament()">Inizia Torneo</button>
+    <button onclick="resetTournament()">Reset Torneo</button>
+  </div>
+
+  <div id="tournament" class="section hidden">
+    <h3>Turno <span id="roundNumber">1</span></h3>
+    <div id="pairings"></div>
+    <button onclick="nextRound()">Avanti</button>
+
+    <h3>Classifica</h3>
+    <div id="standings"></div>
+  </div>
+
+  <script>
+    let players = [];
+    let round = 1;
+    let matches = [];
+
+    document.getElementById("playerName").addEventListener("keydown", e => {
+      if (e.key === "Enter") addPlayer();
+    });
+
+    function addPlayer() {
+      const nameInput = document.getElementById("playerName");
+      const name = nameInput.value.trim();
+      if (name && !players.some(p => p.name === name)) {
+        players.push({ name, points: 0, opponents: [] });
+        updatePlayerList();
+      }
+      nameInput.value = "";
+      nameInput.focus();
+    }
+
+    function updatePlayerList() {
+      const list = document.getElementById("playerList");
+      list.innerHTML = "";
+      players.forEach((p, i) => {
+        const li = document.createElement("li");
+        li.innerHTML = `${p.name} <button onclick="removePlayer(${i})">❌</button>`;
+        list.appendChild(li);
+      });
+    }
+
+    function removePlayer(index) {
+      players.splice(index, 1);
+      updatePlayerList();
+    }
+
+    function clearAllPlayers() {
+      if (confirm("Sicuro di voler svuotare tutta la lista?")) {
+        players = [];
+        updatePlayerList();
+      }
+    }
+
+    function startTournament() {
+      if (players.length < 2) {
+        alert("Aggiungi almeno 2 giocatori");
+        return;
+      }
+      document.getElementById("tournament").classList.remove("hidden");
+      drawPairings();
+    }
+
+    function drawPairings() {
+      players.sort((a, b) => b.points - a.points);
+      let available = [...players];
+      let roundMatches = [];
+
+      while (available.length >= 2) {
+        const p1 = available.shift();
+        let i = available.findIndex(p => !p1.opponents.includes(p.name));
+        if (i === -1) i = 0;
+        const p2 = available.splice(i, 1)[0];
+        roundMatches.push({ p1, p2, result: null });
+      }
+
+      matches.push(roundMatches);
+
+      const pairingDiv = document.getElementById("pairings");
+      pairingDiv.innerHTML = "";
+      roundMatches.forEach((m, i) => {
+        pairingDiv.innerHTML += `
+          <div>
+            ${m.p1.name} vs ${m.p2.name}
+            <select onchange="setResult(${round - 1}, ${i}, this.value)">
+              <option value="">Risultato</option>
+              <option value="1">Vince ${m.p1.name}</option>
+              <option value="2">Vince ${m.p2.name}</option>
+              <option value="0.5">Pareggio</option>
+            </select>
+          </div>
+        `;
+      });
+
+      updateStandings();
+    }
+
+    function setResult(r, i, value) {
+      const match = matches[r][i];
+      const p1 = match.p1;
+      const p2 = match.p2;
+      const v = parseFloat(value);
+
+      if (match.result !== null) {
+        if (match.result === 1) p1.points -= 1;
+        else if (match.result === 2) p2.points -= 1;
+        else if (match.result === 0.5) {
+          p1.points -= 0.5;
+          p2.points -= 0.5;
+        }
+      }
+
+      match.result = v;
+      if (v === 1) p1.points += 1;
+      else if (v === 2) p2.points += 1;
+      else if (v === 0.5) {
+        p1.points += 0.5;
+        p2.points += 0.5;
+      }
+
+      if (!p1.opponents.includes(p2.name)) p1.opponents.push(p2.name);
+      if (!p2.opponents.includes(p1.name)) p2.opponents.push(p1.name);
+
+      updateStandings();
+    }
+
+    function updateStandings() {
+      const s = players.map(p => {
+        const buchholz = p.opponents.reduce((sum, o) => {
+          const op = players.find(x => x.name === o);
+          return sum + (op ? op.points : 0);
+        }, 0);
+        return { ...p, buchholz };
+      });
+
+      s.sort((a, b) => b.points - a.points || b.buchholz - a.buchholz);
+
+      const div = document.getElementById("standings");
+      div.innerHTML = `
+        <table>
+          <thead>
+            <tr><th>#</th><th>Giocatore</th><th>Punti</th><th>Buchholz</th></tr>
+          </thead>
+          <tbody>
+            ${s.map((p, i) => `
+              <tr>
+                <td>${i + 1}</td>
+                <td>${p.name}</td>
+                <td>${p.points}</td>
+                <td>${p.buchholz}</td>
+              </tr>`).join("")}
+          </tbody>
+        </table>
+      `;
+    }
+
+    function nextRound() {
+      round++;
+      document.getElementById("roundNumber").textContent = round;
+      drawPairings();
+    }
+
+    function resetTournament() {
+      if (confirm("Sei sicuro di voler resettare tutto il torneo?")) {
+        players = [];
+        matches = [];
+        round = 1;
+        updatePlayerList();
+        document.getElementById("tournament").classList.add("hidden");
+        document.getElementById("pairings").innerHTML = "";
+        document.getElementById("standings").innerHTML = "";
+        document.getElementById("roundNumber").textContent = "1";
+        document.getElementById("playerName").value = "";
+        document.getElementById("playerName").focus();
+      }
+    }
+  </script>
+</body>
+</html>
